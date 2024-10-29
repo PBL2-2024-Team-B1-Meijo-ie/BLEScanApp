@@ -44,4 +44,4 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer {
         super.unbindService(connection);
     }
 }
-//www
+
