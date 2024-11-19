@@ -1,6 +1,4 @@
 package jp.ac.meijo_u.pbl2.blescanapp;
-
-import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -34,6 +32,7 @@ public class MainActivity extends AppCompatActivity implements RangeNotifier, Mo
     private Region mRegion;
     private BeaconManager beaconManager;
     private TextView beaconInfoTextView;
+    private TextView gettingOnTextView;
     private static final String IBEACON_FORMAT = "m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24";
     private static final String TAG = "BeaconDetection";
     private ActivityResultLauncher<String[]> permissionResult;
@@ -45,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements RangeNotifier, Mo
         setContentView(R.layout.activity_main);
 
         beaconInfoTextView = findViewById(R.id.beaconInfoTextView);
+        gettingOnTextView = findViewById(R.id.gettingOnTextView);
 
         // BeaconManagerの初期化
         beaconManager = BeaconManager.getInstanceForApplication(this);
@@ -103,11 +103,15 @@ public class MainActivity extends AppCompatActivity implements RangeNotifier, Mo
     public void didEnterRegion(Region region) {
         Log.d(TAG, "Enter Region " + (region != null ? region.getUniqueId() : "unknown"));
         runOnUiThread(() -> beaconInfoTextView.setText("Enter Region: " + (region != null ? region.getUniqueId() : "unknown")));
+        runOnUiThread(() -> gettingOnTextView.setText("乗車中"));
+
     }
 
     @Override
     public void didExitRegion(Region region) {
         Log.d(TAG, "Exit Region " + (region != null ? region.getUniqueId() : "unknown"));
+        runOnUiThread(() -> beaconInfoTextView.setText("バスなし"));
+        runOnUiThread(() -> gettingOnTextView.setText("乗車してないよ"));
     }
 
     @Override
@@ -115,10 +119,10 @@ public class MainActivity extends AppCompatActivity implements RangeNotifier, Mo
         Log.d(TAG, "beacons.size " + (beacons != null ? beacons.size() : 0));
         if (beacons != null) {
             for (Beacon beacon : beacons) {
-                String beaconDetails = "UUID: " + beacon.getId1() +
-                        ", Major: " + beacon.getId2() ;
+                String beaconDetails = "UUID: " + beacon.getId1();
                 Log.d(TAG, beaconDetails);
                 runOnUiThread(() -> beaconInfoTextView.setText(beaconDetails));
+                runOnUiThread(() -> gettingOnTextView.setText("乗車中"));
             }
         }
     }
