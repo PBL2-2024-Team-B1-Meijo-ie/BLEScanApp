@@ -1,104 +1,137 @@
 package jp.ac.meijo_u.pbl2.blescanapp;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+
 import android.os.Bundle;
 
-import org.altbeacon.beacon.Beacon;
+
 import org.altbeacon.beacon.BeaconManager;
-import org.altbeacon.beacon.BeaconConsumer;
 import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.MonitorNotifier;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
-
-import android.content.ComponentName;
-import android.content.ServiceConnection;
-import android.os.IBinder;
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.os.Build;
 import android.os.RemoteException;
 import android.util.Log;
+import android.widget.TextView;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.app.ActivityCompat;
+
+import org.altbeacon.beacon.Identifier;
+
+import org.altbeacon.beacon.*;
 
 import java.util.Collection;
 
+public class MainActivity extends AppCompatActivity implements RangeNotifier, MonitorNotifier {
 
-public class MainActivity extends AppCompatActivity implements BeaconConsumer {
+    private Region mRegion;
     private BeaconManager beaconManager;
-    //iBeacon認識のためのフォーマット設定
+    private TextView beaconInfoTextView;
     private static final String IBEACON_FORMAT = "m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24";
+    private static final String TAG = "BeaconDetection";
+    private ActivityResultLauncher<String[]> permissionResult;
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        beaconInfoTextView = findViewById(R.id.beaconInfoTextView);
+
+        // BeaconManagerの初期化
         beaconManager = BeaconManager.getInstanceForApplication(this);
-
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(IBEACON_FORMAT));
-    }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        beaconManager.bind(this);
+        // UUIDの指定
+        mRegion = new Region("iBeacon", Identifier.parse("E2C56DB5-DFFB-48D2-B060-D0F5A71096E0"), null, null);
 
-    }
+        // パーミッションリクエストのセットアップ
+        permissionResult = registerForActivityResult(
+                new ActivityResultContracts.RequestMultiplePermissions(),
+                result -> {
+                    Boolean fineLocationGranted = result.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false);
+                    Boolean coarseLocationGranted = result.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false);
+                    Boolean bluetoothScanGranted = result.getOrDefault(Manifest.permission.BLUETOOTH_SCAN, false);
+                    Boolean bluetoothConnectGranted = result.getOrDefault(Manifest.permission.BLUETOOTH_CONNECT, false);
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        beaconManager.unbind(this);
-
-    }
-
-    @Override
-    public void onBeaconServiceConnect() {
-        beaconManager.addMonitorNotifier(new MonitorNotifier() {
-            @Override
-            public void didEnterRegion(Region region) {
-                //領域への入場を検知
-                Log.d("iBeacon", "Enter Region");
-            }
-
-            @Override
-            public void didExitRegion(Region region) {
-                //領域からの退場を検知
-                Log.d("iBeacon", "Exit Region");
-            }
-
-            @Override
-            public void didDetermineStateForRegion(int i, Region region) {
-                //領域への入退場のステータス変化を検知
-                Log.d("MyActivity", "Determine State" + i);
-            }
-
-        });
-
-        beaconManager.addRangeNotifier(new RangeNotifier() {
-            @Override
-            public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
-                //検出したBeaconの情報を全てlog出力
-                for(Beacon beacon: beacons) {
-                    Log.d("MyActivity", "UUID:" + beacon.getId1() + ", major:"
-                            + beacon.getId2() + ", minor:" + beacon.getId3() + ", RSSI:"
-                            + beacon.getRssi() + ", TxPower:" + beacon.getTxPower()
-                            + ", Distance:" + beacon.getDistance());
+                    if (fineLocationGranted && coarseLocationGranted &&
+                            (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || (bluetoothScanGranted && bluetoothConnectGranted))) {
+                        startBeaconMonitoring();
+                    } else {
+                        Log.e(TAG, "Required permission not granted!");
+                    }
                 }
-            }
-        });
+        );
 
-        final Region mRegion = new Region("iBeacon", null, null, null);
-        try{
-            //Beacon情報の監視を開始
-            beaconManager.startMonitoringBeaconsInRegion(mRegion);
-        } catch(RemoteException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            beaconManager.startRangingBeaconsInRegion(mRegion);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-
+        requestPermissionsIfNeeded();
     }
 
+    private void requestPermissionsIfNeeded() {
+        // Android 12以上とそれ以下でリクエストするパーミッションを分ける
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissionResult.launch(new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT
+            });
+        } else {
+            permissionResult.launch(new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            });
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private void startBeaconMonitoring() {
+            beaconManager.addMonitorNotifier(this);
+            beaconManager.addRangeNotifier(this);
+            beaconManager.startMonitoring(mRegion);
+            beaconManager.startRangingBeacons(mRegion);
+    }
+
+    @Override
+    public void didEnterRegion(Region region) {
+        Log.d(TAG, "Enter Region " + (region != null ? region.getUniqueId() : "unknown"));
+        runOnUiThread(() -> beaconInfoTextView.setText("Enter Region: " + (region != null ? region.getUniqueId() : "unknown")));
+    }
+
+    @Override
+    public void didExitRegion(Region region) {
+        Log.d(TAG, "Exit Region " + (region != null ? region.getUniqueId() : "unknown"));
+    }
+
+    @Override
+    public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
+        Log.d(TAG, "beacons.size " + (beacons != null ? beacons.size() : 0));
+        if (beacons != null) {
+            for (Beacon beacon : beacons) {
+                String beaconDetails = "UUID: " + beacon.getId1() +
+                        ", Major: " + beacon.getId2() ;
+                Log.d(TAG, beaconDetails);
+                runOnUiThread(() -> beaconInfoTextView.setText(beaconDetails));
+            }
+        }
+    }
+
+    @Override
+    public void didDetermineStateForRegion(int state, Region region) {
+        Log.d(TAG, "Determine State: " + state);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+            beaconManager.stopMonitoring(mRegion);
+            beaconManager.stopRangingBeacons(mRegion);
+    }
 }
