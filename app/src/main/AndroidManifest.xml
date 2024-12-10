@@ -12,6 +12,8 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>
     <!--Android 6.0でBLEを使うのに位置情報のパーミッションが必要-->
     <uses-permission-sdk-23 android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+
 
 
     <application

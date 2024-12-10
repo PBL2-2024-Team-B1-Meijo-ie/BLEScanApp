@@ -1,29 +1,28 @@
 package jp.ac.meijo_u.pbl2.blescanapp;
+
+import androidx.annotation.MainThread;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Bundle;
 
-
+import org.altbeacon.beacon.*;
 import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.MonitorNotifier;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
+
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.os.Build;
-import android.os.RemoteException;
 import android.util.Log;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.core.app.ActivityCompat;
 
 import org.altbeacon.beacon.Identifier;
-
-import org.altbeacon.beacon.*;
 
 import java.util.Collection;
 
@@ -51,6 +50,7 @@ public class MainActivity extends AppCompatActivity implements RangeNotifier, Mo
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(IBEACON_FORMAT));
 
         // UUIDの指定
+        //ビーコンごとにUUIDを変えて複数指定をすることを考えたが，他チームとビーコンを共有しているため省略した．
         mRegion = new Region("iBeacon", Identifier.parse("E2C56DB5-DFFB-48D2-B060-D0F5A71096E0"), null, null);
 
         // パーミッションリクエストのセットアップ
@@ -101,14 +101,28 @@ public class MainActivity extends AppCompatActivity implements RangeNotifier, Mo
 
     @Override
     public void didEnterRegion(Region region) {
+        //検知したビーコン (バスに乗車したかどうか) をサーバに送信
+        // HttpPostTaskクラスを利用
+        String serverUrl = "https://web-client-api.onrender.com/api/blebeecon"; // サーバのエンドポイント
+        String dataToSend = "{\"message\": \"get on " + region.getUniqueId() + " \"}"; // 送信するデータ
+
+        new HttpPostTask(MainActivity.this).execute(serverUrl, dataToSend);
+
         Log.d(TAG, "Enter Region " + (region != null ? region.getUniqueId() : "unknown"));
         runOnUiThread(() -> beaconInfoTextView.setText("Enter Region: " + (region != null ? region.getUniqueId() : "unknown")));
         runOnUiThread(() -> gettingOnTextView.setText("乗車中"));
+
 
     }
 
     @Override
     public void didExitRegion(Region region) {
+        // HttpPostTaskクラスを利用
+        String serverUrl = "https://web-client-api.onrender.com/api/blebeecon"; // サーバのエンドポイント
+        String dataToSend = "{\"message\": \"get off " + region.getUniqueId() + " \"}"; // 送信するデータ
+
+        new HttpPostTask(MainActivity.this).execute(serverUrl, dataToSend);
+
         Log.d(TAG, "Exit Region " + (region != null ? region.getUniqueId() : "unknown"));
         runOnUiThread(() -> beaconInfoTextView.setText("バスなし"));
         runOnUiThread(() -> gettingOnTextView.setText("乗車してないよ"));

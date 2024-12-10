@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">BLEScanApp</string>
+<string name="app_name">BLEScanApp</string>
+<string name="toast_response">Good Night</string>
 </resources>
